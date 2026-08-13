@@ -1,0 +1,77 @@
+import pandas as pd
+import time
+import numpy as np
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import (accuracy_score, precision_score, recall_score,
+                             f1_score, roc_auc_score, confusion_matrix,
+                             classification_report)
+
+X_train_raw = pd.read_csv('train_features.csv')
+X_test_raw = pd.read_csv('test_features.csv')
+y_train_raw = pd.read_csv('train_labels.csv')
+y_test_raw = pd.read_csv('test_labels.csv')
+
+def preprocess_data(df):
+    df_encoded = df.copy()
+    for col in df_encoded.columns:
+        if df_encoded[col].dtype == 'object':
+            if col == 'Gender':
+                df_encoded[col] = df_encoded[col].map({'Male': 1, 'Female': 0})
+            else:
+                df_encoded[col] = df_encoded[col].map({'Yes': 1, 'No': 0})
+    return df_encoded
+
+X_train = preprocess_data(X_train_raw)
+X_test = preprocess_data(X_test_raw)
+
+label_map = {'Positive': 1, 'Negative': 0}
+y_train = y_train_raw.iloc[:, 0].map(label_map).values
+y_test = y_test_raw.iloc[:, 0].map(label_map).values
+
+print(f" k-NN Preprocessing complete.")
+print(f" Number of input symptoms: {X_train.shape[1]}")
+
+final_model_knn = KNeighborsClassifier(
+    n_neighbors=5,
+    weights='uniform',
+    metric='minkowski',
+    p=2
+)
+
+start_time = time.time()
+final_model_knn.fit(X_train, y_train)
+train_time = time.time() - start_time
+
+y_pred = final_model_knn.predict(X_test)
+y_proba = final_model_knn.predict_proba(X_test)[:, 1]
+
+tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+acc = accuracy_score(y_test, y_pred)
+rec = recall_score(y_test, y_pred)
+spec = tn / (tn + fp) if (tn + fp) > 0 else 0
+prec = precision_score(y_test, y_pred)
+f1 = f1_score(y_test, y_pred)
+auc = roc_auc_score(y_test, y_proba)
+g_mean = np.sqrt(rec * spec)
+
+print("\n" + "█"*60)
+print("REPORT: k-NN (SYMPTOMS - DEFAULT)")
+print("█"*60)
+print(f"Fit Time (Storage)       : {train_time:.4f}s")
+print(f"Number of neighbors (k)   : 5")
+print("-" * 60)
+print(f"Global Accuracy (Acc)     : {acc:.4%}")
+print(f"Sensitivity (Recall)      : {rec:.4f}")
+print(f"Specificity              : {spec:.4f}")
+print(f"F1-Score                 : {f1:.4f}")
+print(f"G-Mean                    : {g_mean:.4f}")
+print(f"AUC-ROC Score             : {auc:.4f}")
+print("-" * 60)
+print(f"True Positives (TP)       : {tp}")
+print(f"True Negatives (TN)       : {tn}")
+print(f"False Positives (FP)      : {fp}")
+print(f"False Negatives (FN)      : {fn}")
+print("-" * 60)
+
+print("\nFULL CLASSIFICATION REPORT:")
+print(classification_report(y_test, y_pred, target_names=['Negative', 'Positive']))
